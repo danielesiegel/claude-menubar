@@ -17,7 +17,7 @@ Native macOS menu bar app for Claude Code CLI. Shows current tasks, handles appr
 ## Install
 
 ```bash
-git clone https://github.com/yourusername/claude-menubar.git
+git clone https://github.com/danielesiegel/claude-menubar.git
 cd claude-menubar
 chmod +x install.sh
 ./install.sh
