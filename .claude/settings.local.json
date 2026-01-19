@@ -7,7 +7,16 @@
       "Bash(git add:*)",
       "Bash(git rm:*)",
       "Bash(git branch:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit: ClaudeMenuBar - Native macOS menu bar app for Claude Code\n\n- NSStatusItem with Claude icon when CLI is active\n- NSPopover with current tasks and pending actions display\n- Actionable notifications with approve/deny buttons\n- Touch Bar support for quick approve/deny\n- Hook integration with Claude Code settings.json\n- Install/uninstall scripts\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit: ClaudeMenuBar - Native macOS menu bar app for Claude Code\n\n- NSStatusItem with Claude icon when CLI is active\n- NSPopover with current tasks and pending actions display\n- Actionable notifications with approve/deny buttons\n- Touch Bar support for quick approve/deny\n- Hook integration with Claude Code settings.json\n- Install/uninstall scripts\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(gh repo create:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(./install.sh:*)",
+      "Bash(open /Applications/ClaudeMenuBar.app)",
+      "Bash(xattr -cr:*)",
+      "Bash(codesign:*)",
+      "Bash(pkill:*)",
+      "Bash(pgrep:*)"
     ]
   }
 }

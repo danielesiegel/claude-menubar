@@ -79,15 +79,15 @@ if [ -f "$CLAUDE_SETTINGS" ]; then
         .hooks = (.hooks // {}) |
         .hooks.PreToolUse = (.hooks.PreToolUse // []) + [{
             "matcher": "Bash|Write|Edit|mcp__.*",
-            "hooks": [{"type": "command", "command": $hook + " PreToolUse"}]
+            "hooks": [{"type": "command", "command": "\($hook) PreToolUse"}]
         }] |
         .hooks.Stop = (.hooks.Stop // []) + [{
             "matcher": "",
-            "hooks": [{"type": "command", "command": $hook + " Stop"}]
+            "hooks": [{"type": "command", "command": "\($hook) Stop"}]
         }] |
         .hooks.Notification = (.hooks.Notification // []) + [{
             "matcher": "",
-            "hooks": [{"type": "command", "command": $hook + " Notification"}]
+            "hooks": [{"type": "command", "command": "\($hook) Notification"}]
         }]
     ')
     echo "$UPDATED_SETTINGS" > "$CLAUDE_SETTINGS"

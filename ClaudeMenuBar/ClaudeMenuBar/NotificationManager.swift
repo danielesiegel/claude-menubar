@@ -110,7 +110,7 @@ class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterD
         showPermissionPopover(for: action)
 
         // Update Touch Bar
-        TouchBarManager.shared.showPermissionRequest(action)
+        TouchBarManagerWrapper.showPermissionRequest(action)
     }
 
     @objc private func handleTaskComplete(_ notification: Notification) {

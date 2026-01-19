@@ -2,18 +2,29 @@ import Foundation
 import AppKit
 
 @available(macOS 10.12.2, *)
-class TouchBarManager: NSObject, NSTouchBarDelegate {
+class TouchBarManager: NSObject, NSTouchBarDelegate, NSTouchBarProvider {
     static let shared = TouchBarManager()
 
-    private var touchBar: NSTouchBar?
+    private var _touchBar: NSTouchBar?
     private var currentAction: PendingAction?
-    private var touchBarWindow: NSWindow?
+    private var touchBarController: TouchBarWindowController?
 
     private let touchBarIdentifier = NSTouchBar.CustomizationIdentifier("com.claudemenubar.touchbar")
     private let approveIdentifier = NSTouchBarItem.Identifier("com.claudemenubar.approve")
     private let denyIdentifier = NSTouchBarItem.Identifier("com.claudemenubar.deny")
     private let labelIdentifier = NSTouchBarItem.Identifier("com.claudemenubar.label")
-    private let statusIdentifier = NSTouchBarItem.Identifier("com.claudemenubar.status")
+
+    var touchBar: NSTouchBar? {
+        get {
+            if _touchBar == nil {
+                _touchBar = makeTouchBar()
+            }
+            return _touchBar
+        }
+        set {
+            _touchBar = newValue
+        }
+    }
 
     override init() {
         super.init()
@@ -37,32 +48,25 @@ class TouchBarManager: NSObject, NSTouchBarDelegate {
     }
 
     private func presentTouchBar() {
-        // Create a minimal window to host the Touch Bar
-        if touchBarWindow == nil {
-            touchBarWindow = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 1, height: 1),
-                styleMask: [.borderless],
-                backing: .buffered,
-                defer: false
-            )
-            touchBarWindow?.isReleasedWhenClosed = false
-            touchBarWindow?.level = .floating
-            touchBarWindow?.collectionBehavior = [.canJoinAllSpaces, .stationary]
+        // Create a window controller to host the Touch Bar
+        if touchBarController == nil {
+            touchBarController = TouchBarWindowController()
         }
 
-        touchBar = makeTouchBar()
+        touchBarController?.touchBarProvider = self
+        _touchBar = nil // Force recreation
+        touchBarController?.showWindow(nil)
 
-        // Present the Touch Bar
-        if #available(macOS 10.14, *) {
-            NSTouchBar.presentSystemModalTouchBar(touchBar!, systemTrayItemIdentifier: statusIdentifier)
+        // Make the Touch Bar visible
+        if let touchBar = touchBar {
+            NSApp.touchBar = touchBar
         }
     }
 
     private func dismissTouchBar() {
-        if #available(macOS 10.14, *) {
-            NSTouchBar.dismissSystemModalTouchBar(touchBar!)
-        }
-        touchBar = nil
+        NSApp.touchBar = nil
+        touchBarController?.close()
+        _touchBar = nil
     }
 
     // MARK: - Touch Bar Creation
@@ -108,15 +112,6 @@ class TouchBarManager: NSObject, NSTouchBarDelegate {
             item.view = button
             return item
 
-        case statusIdentifier:
-            let item = NSCustomTouchBarItem(identifier: identifier)
-            let imageView = NSImageView()
-            if let image = NSImage(systemSymbolName: "brain.head.profile", accessibilityDescription: "Claude") {
-                imageView.image = image
-            }
-            item.view = imageView
-            return item
-
         default:
             return nil
         }
@@ -137,22 +132,64 @@ class TouchBarManager: NSObject, NSTouchBarDelegate {
     }
 }
 
-// MARK: - Fallback for older macOS
+// MARK: - Touch Bar Window Controller
 
-class TouchBarManagerFallback {
-    static let shared: Any = {
+@available(macOS 10.12.2, *)
+class TouchBarWindowController: NSWindowController {
+    var touchBarProvider: NSTouchBarProvider?
+
+    override var touchBar: NSTouchBar? {
+        get { return touchBarProvider?.touchBar }
+        set { }
+    }
+
+    init() {
+        // Create an invisible window to host the Touch Bar
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1, height: 1),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: true
+        )
+        window.isReleasedWhenClosed = false
+        window.level = .floating
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+        window.isOpaque = false
+        window.backgroundColor = .clear
+
+        super.init(window: window)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+// MARK: - Wrapper for version compatibility
+
+class TouchBarManagerWrapper {
+    static var shared: Any = {
         if #available(macOS 10.12.2, *) {
             return TouchBarManager.shared
         } else {
-            return TouchBarManagerFallback()
+            return DummyTouchBarManager()
         }
     }()
 
-    func showPermissionRequest(_ action: PendingAction) {
-        // No-op on older macOS
+    static func showPermissionRequest(_ action: PendingAction) {
+        if #available(macOS 10.12.2, *) {
+            TouchBarManager.shared.showPermissionRequest(action)
+        }
     }
 
-    func hidePermissionRequest() {
-        // No-op on older macOS
+    static func hidePermissionRequest() {
+        if #available(macOS 10.12.2, *) {
+            TouchBarManager.shared.hidePermissionRequest()
+        }
     }
+}
+
+class DummyTouchBarManager {
+    func showPermissionRequest(_ action: PendingAction) {}
+    func hidePermissionRequest() {}
 }
