@@ -16,7 +16,8 @@
       "Bash(xattr -cr:*)",
       "Bash(codesign:*)",
       "Bash(pkill:*)",
-      "Bash(pgrep:*)"
+      "Bash(pgrep:*)",
+      "Bash(log show:*)"
     ]
   }
 }

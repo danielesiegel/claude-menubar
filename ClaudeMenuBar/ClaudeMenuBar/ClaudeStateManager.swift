@@ -143,34 +143,37 @@ class ClaudeStateManager: ObservableObject {
     }
 
     private func checkForClaudeProcesses() {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/ps")
-        task.arguments = ["-ax", "-o", "pid,command"]
+        // Run on background queue to avoid blocking main thread
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/bin/ps")
+            task.arguments = ["-ax", "-o", "pid,command"]
 
-        let pipe = Pipe()
-        task.standardOutput = pipe
+            let pipe = Pipe()
+            task.standardOutput = pipe
 
-        do {
-            try task.run()
-            task.waitUntilExit()
+            do {
+                try task.run()
+                task.waitUntilExit()
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            if let output = String(data: data, encoding: .utf8) {
-                let isActive = output.contains("claude") &&
-                    (output.contains("Terminal") || output.contains("ghostty") ||
-                     output.contains("node") || output.contains("claude-code"))
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                if let output = String(data: data, encoding: .utf8) {
+                    let isActive = output.contains("claude") &&
+                        (output.contains("Terminal") || output.contains("ghostty") ||
+                         output.contains("node") || output.contains("claude-code"))
 
-                DispatchQueue.main.async { [weak self] in
-                    let wasActive = self?.isClaudeActive ?? false
-                    self?.isClaudeActive = isActive
+                    DispatchQueue.main.async {
+                        let wasActive = self?.isClaudeActive ?? false
+                        self?.isClaudeActive = isActive
 
-                    if wasActive != isActive {
-                        NotificationCenter.default.post(name: .claudeStateDidChange, object: nil)
+                        if wasActive != isActive {
+                            NotificationCenter.default.post(name: .claudeStateDidChange, object: nil)
+                        }
                     }
                 }
+            } catch {
+                print("Error checking processes: \(error)")
             }
-        } catch {
-            print("Error checking processes: \(error)")
         }
     }
 
