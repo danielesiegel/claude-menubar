@@ -1,6 +1,9 @@
 import Foundation
 import AppKit
 import Combine
+import os.log
+
+private let logger = Logger(subsystem: "com.claudemenubar", category: "ProcessMonitor")
 
 enum TaskStatus: String, Codable {
     case pending
@@ -116,6 +119,9 @@ class ClaudeStateManager: ObservableObject {
     }
 
     func startMonitoring() {
+        logger.notice("startMonitoring() called")
+        NSLog("[ClaudeMenuBar] startMonitoring() called")
+
         // Monitor for Claude processes
         startProcessMonitoring()
 
@@ -133,12 +139,21 @@ class ClaudeStateManager: ObservableObject {
     // MARK: - Process Monitoring
 
     private func startProcessMonitoring() {
+        logger.notice("Starting process monitoring")
+        NSLog("[ClaudeMenuBar] Starting process monitoring")
+
         // Check immediately
         checkForClaudeProcesses()
 
         // Then check periodically
         processMonitorTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             self?.checkForClaudeProcesses()
+        }
+
+        // Ensure timer is added to run loop for common modes (menu bar, etc)
+        if let timer = processMonitorTimer {
+            RunLoop.main.add(timer, forMode: .common)
+            NSLog("[ClaudeMenuBar] Timer added to run loop")
         }
     }
 
@@ -153,6 +168,7 @@ class ClaudeStateManager: ObservableObject {
 
             let pipe = Pipe()
             task.standardOutput = pipe
+            task.standardError = FileHandle.nullDevice
 
             do {
                 try task.run()
@@ -163,9 +179,19 @@ class ClaudeStateManager: ObservableObject {
                     // Check for claude processes with a TTY (running in terminal)
                     // Lines look like: "ttys000  claude" or "ttys001  claude"
                     let lines = output.components(separatedBy: "\n")
-                    let isActive = lines.contains { line in
+
+                    // Find matching lines for debugging
+                    let matchingLines = lines.filter { line in
                         let trimmed = line.trimmingCharacters(in: .whitespaces)
                         return trimmed.contains("ttys") && trimmed.hasSuffix("claude")
+                    }
+
+                    let isActive = !matchingLines.isEmpty
+                    NSLog("[ClaudeMenuBar] Check: found \(matchingLines.count) Claude instances, isActive=\(isActive)")
+
+                    if !matchingLines.isEmpty {
+                        logger.notice("Found Claude CLI instances: \(matchingLines.joined(separator: ", "))")
+                        NSLog("[ClaudeMenuBar] Found: \(matchingLines.joined(separator: ", "))")
                     }
 
                     DispatchQueue.main.async {
@@ -173,12 +199,15 @@ class ClaudeStateManager: ObservableObject {
                         self?.isClaudeActive = isActive
 
                         if wasActive != isActive {
+                            logger.notice("State changed: \(wasActive) -> \(isActive)")
+                            NSLog("[ClaudeMenuBar] State changed: \(wasActive) -> \(isActive)")
                             NotificationCenter.default.post(name: .claudeStateDidChange, object: nil)
                         }
                     }
                 }
             } catch {
-                print("Error checking processes: \(error)")
+                logger.error("Error checking processes: \(error.localizedDescription)")
+                NSLog("[ClaudeMenuBar] Error: \(error.localizedDescription)")
             }
         }
     }
@@ -215,13 +244,15 @@ class ClaudeStateManager: ObservableObject {
         }
 
         DispatchQueue.main.async { [weak self] in
+            // Only load tasks, pending actions, and session ID from file
+            // The process monitor is the authoritative source for isClaudeActive
             self?.currentTasks = state.tasks
             self?.pendingActions = state.pendingActions
             self?.currentSessionId = state.sessionId
 
-            if state.isActive != self?.isClaudeActive {
-                self?.isClaudeActive = state.isActive
-                NotificationCenter.default.post(name: .claudeStateDidChange, object: nil)
+            // Notify if pending actions changed (for UI update)
+            if !state.pendingActions.isEmpty {
+                NotificationCenter.default.post(name: .claudePermissionRequest, object: nil)
             }
         }
     }
