@@ -28,5 +28,7 @@
     <string>ClaudeMenuBar needs to send keystrokes to terminal applications for approve/deny actions.</string>
     <key>NSUserNotificationAlertStyle</key>
     <string>alert</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
 </dict>
 </plist>

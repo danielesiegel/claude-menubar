@@ -17,7 +17,9 @@
       "Bash(codesign:*)",
       "Bash(pkill:*)",
       "Bash(pgrep:*)",
-      "Bash(log show:*)"
+      "Bash(log show:*)",
+      "Bash(python3:*)",
+      "Bash(git reset:*)"
     ]
   }
 }

@@ -59,6 +59,14 @@ if command -v swift &> /dev/null; then
     # Create PkgInfo
     echo "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"
 
+    # Copy app icon if exists
+    if [ -f "$SCRIPT_DIR/ClaudeMenuBar.icns" ]; then
+        cp "$SCRIPT_DIR/ClaudeMenuBar.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
+    fi
+
+    # Sign the app
+    codesign --force --deep --sign - "$APP_BUNDLE" 2>/dev/null || true
+
     echo "✓ App installed to $APP_BUNDLE"
 else
     echo "Warning: Swift not found. Please build the app manually in Xcode."
