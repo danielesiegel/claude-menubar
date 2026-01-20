@@ -19,7 +19,9 @@
       "Bash(pgrep:*)",
       "Bash(log show:*)",
       "Bash(python3:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(ps:*)",
+      "Bash(swift build:*)"
     ]
   }
 }

@@ -147,7 +147,9 @@ class ClaudeStateManager: ObservableObject {
         DispatchQueue.global(qos: .utility).async { [weak self] in
             let task = Process()
             task.executableURL = URL(fileURLWithPath: "/bin/ps")
-            task.arguments = ["-ax", "-o", "pid,command"]
+            // Use tty,comm format to find Claude CLI instances in terminals
+            // Claude CLI shows as "claude" with a tty (ttys*) when in Terminal/Ghostty
+            task.arguments = ["-eo", "tty,comm"]
 
             let pipe = Pipe()
             task.standardOutput = pipe
@@ -158,9 +160,13 @@ class ClaudeStateManager: ObservableObject {
 
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 if let output = String(data: data, encoding: .utf8) {
-                    let isActive = output.contains("claude") &&
-                        (output.contains("Terminal") || output.contains("ghostty") ||
-                         output.contains("node") || output.contains("claude-code"))
+                    // Check for claude processes with a TTY (running in terminal)
+                    // Lines look like: "ttys000  claude" or "ttys001  claude"
+                    let lines = output.components(separatedBy: "\n")
+                    let isActive = lines.contains { line in
+                        let trimmed = line.trimmingCharacters(in: .whitespaces)
+                        return trimmed.contains("ttys") && trimmed.hasSuffix("claude")
+                    }
 
                     DispatchQueue.main.async {
                         let wasActive = self?.isClaudeActive ?? false
