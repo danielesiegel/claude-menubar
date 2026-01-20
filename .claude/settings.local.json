@@ -21,7 +21,8 @@
       "Bash(python3:*)",
       "Bash(git reset:*)",
       "Bash(ps:*)",
-      "Bash(swift build:*)"
+      "Bash(swift build:*)",
+      "Bash(swift:*)"
     ]
   }
 }
