@@ -125,14 +125,14 @@ class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterD
     func sendPermissionNotification(for action: PendingAction) {
         let content = UNMutableNotificationContent()
         content.title = "Claude Code - Approval Required"
-        content.subtitle = action.type.rawValue
+        content.subtitle = action.type
         content.body = action.description
         content.sound = .default
         content.categoryIdentifier = "PERMISSION_REQUEST"
-        content.userInfo = ["actionId": action.id.uuidString]
+        content.userInfo = ["actionId": action.id]
 
         let request = UNNotificationRequest(
-            identifier: "permission-\(action.id.uuidString)",
+            identifier: "permission-\(action.id)",
             content: content,
             trigger: nil
         )
@@ -186,8 +186,7 @@ class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterD
         let userInfo = response.notification.request.content.userInfo
 
         if let actionIdString = userInfo["actionId"] as? String,
-           let actionId = UUID(uuidString: actionIdString),
-           let action = ClaudeStateManager.shared.pendingActions.first(where: { $0.id == actionId }) {
+           let action = ClaudeStateManager.shared.pendingActions.first(where: { $0.id == actionIdString }) {
 
             switch actionIdentifier {
             case "APPROVE_ACTION":

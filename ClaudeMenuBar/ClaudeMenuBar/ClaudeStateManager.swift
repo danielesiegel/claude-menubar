@@ -30,12 +30,12 @@ enum TaskStatus: String, Codable {
 import SwiftUI
 
 struct ClaudeTask: Identifiable, Codable {
-    let id: UUID
+    let id: String
     var content: String
     var status: TaskStatus
     var activeForm: String?
 
-    init(id: UUID = UUID(), content: String, status: TaskStatus, activeForm: String? = nil) {
+    init(id: String = UUID().uuidString, content: String, status: TaskStatus, activeForm: String? = nil) {
         self.id = id
         self.content = content
         self.status = status
@@ -62,18 +62,28 @@ enum ActionType: String, Codable {
 }
 
 struct PendingAction: Identifiable, Codable {
-    let id: UUID
-    let type: ActionType
+    let id: String
+    let type: String  // Raw tool name like "Bash", "Write", "Edit"
     let description: String
-    let timestamp: Date
+    let timestamp: String  // ISO8601 string from hook
     let toolName: String?
 
-    init(id: UUID = UUID(), type: ActionType, description: String, toolName: String? = nil) {
+    init(id: String = UUID().uuidString, type: String, description: String, timestamp: String? = nil, toolName: String? = nil) {
         self.id = id
         self.type = type
         self.description = description
-        self.timestamp = Date()
+        self.timestamp = timestamp ?? ISO8601DateFormatter().string(from: Date())
         self.toolName = toolName
+    }
+
+    var actionType: ActionType {
+        switch type {
+        case "Bash": return .bash
+        case "Write": return .write
+        case "Edit": return .edit
+        case let t where t.hasPrefix("mcp__"): return .mcp
+        default: return .other
+        }
     }
 }
 
@@ -215,16 +225,22 @@ class ClaudeStateManager: ObservableObject {
     // MARK: - File Watching
 
     private func startFileWatching() {
+        NSLog("[ClaudeMenuBar] Starting file watcher for: \(stateFileURL.path)")
+
         let fd = open(stateFileURL.path, O_EVTONLY)
-        guard fd != -1 else { return }
+        guard fd != -1 else {
+            NSLog("[ClaudeMenuBar] Failed to open file for watching")
+            return
+        }
 
         fileWatcher = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fd,
-            eventMask: .write,
+            eventMask: [.write, .delete, .rename, .attrib],
             queue: .main
         )
 
         fileWatcher?.setEventHandler { [weak self] in
+            NSLog("[ClaudeMenuBar] File change detected!")
             self?.loadState()
         }
 
@@ -233,15 +249,28 @@ class ClaudeStateManager: ObservableObject {
         }
 
         fileWatcher?.resume()
+        NSLog("[ClaudeMenuBar] File watcher started")
     }
 
     // MARK: - State Management
 
     private func loadState() {
-        guard let data = try? Data(contentsOf: stateFileURL),
-              let state = try? JSONDecoder().decode(ClaudeState.self, from: data) else {
+        NSLog("[ClaudeMenuBar] loadState() called")
+
+        guard let data = try? Data(contentsOf: stateFileURL) else {
+            NSLog("[ClaudeMenuBar] Failed to read state file")
             return
         }
+
+        guard let state = try? JSONDecoder().decode(ClaudeState.self, from: data) else {
+            NSLog("[ClaudeMenuBar] Failed to decode state JSON")
+            if let jsonString = String(data: data, encoding: .utf8) {
+                NSLog("[ClaudeMenuBar] Raw JSON: \(jsonString.prefix(200))")
+            }
+            return
+        }
+
+        NSLog("[ClaudeMenuBar] Loaded state: \(state.tasks.count) tasks, \(state.pendingActions.count) pending actions")
 
         DispatchQueue.main.async { [weak self] in
             // Only load tasks, pending actions, and session ID from file
@@ -249,6 +278,8 @@ class ClaudeStateManager: ObservableObject {
             self?.currentTasks = state.tasks
             self?.pendingActions = state.pendingActions
             self?.currentSessionId = state.sessionId
+
+            NSLog("[ClaudeMenuBar] State applied to manager")
 
             // Notify if pending actions changed (for UI update)
             if !state.pendingActions.isEmpty {
@@ -266,7 +297,7 @@ class ClaudeStateManager: ObservableObject {
 
     func approveAction(_ action: PendingAction) {
         // Write command to file for hook to pick up
-        let command = ["action": "approve", "id": action.id.uuidString]
+        let command = ["action": "approve", "id": action.id]
         if let data = try? JSONEncoder().encode(command) {
             try? data.write(to: commandFileURL)
         }
@@ -280,7 +311,7 @@ class ClaudeStateManager: ObservableObject {
 
     func denyAction(_ action: PendingAction) {
         // Write command to file
-        let command = ["action": "deny", "id": action.id.uuidString]
+        let command = ["action": "deny", "id": action.id]
         if let data = try? JSONEncoder().encode(command) {
             try? data.write(to: commandFileURL)
         }

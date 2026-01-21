@@ -176,10 +176,10 @@ struct PendingActionRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Image(systemName: action.type.icon)
+                Image(systemName: action.actionType.icon)
                     .font(.system(size: 11))
                     .foregroundColor(.orange)
-                Text(action.type.rawValue)
+                Text(action.type)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.orange)
                 Spacer()

@@ -84,7 +84,7 @@ class TouchBarManager: NSObject, NSTouchBarDelegate, NSTouchBarProvider {
         switch identifier {
         case labelIdentifier:
             let item = NSCustomTouchBarItem(identifier: identifier)
-            let label = NSTextField(labelWithString: currentAction?.type.rawValue ?? "Approval Required")
+            let label = NSTextField(labelWithString: currentAction?.type ?? "Approval Required")
             label.font = NSFont.systemFont(ofSize: 12, weight: .medium)
             label.textColor = NSColor.white
             item.view = label
