@@ -29,7 +29,7 @@ enum TaskStatus: String, Codable {
 
 import SwiftUI
 
-struct ClaudeTask: Identifiable, Codable {
+struct ClaudeTask: Identifiable, Codable, Equatable {
     let id: String
     var content: String
     var status: TaskStatus
@@ -104,7 +104,9 @@ class ClaudeStateManager: ObservableObject {
     @Published var currentSessionId: String?
 
     private var processMonitorTimer: Timer?
+    private var transcriptScanTimer: Timer?
     private var fileWatcher: DispatchSourceFileSystemObject?
+    private var claudeProjectsDir: URL
     private var stateFileURL: URL
     private var commandFileURL: URL
     private let fileManager = FileManager.default
@@ -118,6 +120,10 @@ class ClaudeStateManager: ObservableObject {
 
         stateFileURL = stateDir.appendingPathComponent("claude_state.json")
         commandFileURL = stateDir.appendingPathComponent("commands.json")
+
+        // Claude projects directory for transcript scanning
+        claudeProjectsDir = fileManager.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/projects", isDirectory: true)
 
         // Create empty state file if needed
         if !fileManager.fileExists(atPath: stateFileURL.path) {
@@ -137,11 +143,16 @@ class ClaudeStateManager: ObservableObject {
 
         // Watch for state file changes (from hooks)
         startFileWatching()
+
+        // Start transcript scanning for tasks from all sessions
+        startTranscriptScanning()
     }
 
     func stopMonitoring() {
         processMonitorTimer?.invalidate()
         processMonitorTimer = nil
+        transcriptScanTimer?.invalidate()
+        transcriptScanTimer = nil
         fileWatcher?.cancel()
         fileWatcher = nil
     }
@@ -220,6 +231,131 @@ class ClaudeStateManager: ObservableObject {
                 NSLog("[ClaudeMenuBar] Error: \(error.localizedDescription)")
             }
         }
+    }
+
+    // MARK: - Transcript Scanning
+
+    private func startTranscriptScanning() {
+        NSLog("[ClaudeMenuBar] Starting transcript scanning")
+
+        // Scan immediately
+        scanTranscripts()
+
+        // Then scan periodically (every 3 seconds)
+        transcriptScanTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+            self?.scanTranscripts()
+        }
+
+        if let timer = transcriptScanTimer {
+            RunLoop.main.add(timer, forMode: .common)
+        }
+    }
+
+    private func scanTranscripts() {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self = self else { return }
+
+            var allTasks: [ClaudeTask] = []
+
+            // Find recently modified transcript files (within last 2 hours)
+            let twoHoursAgo = Date().addingTimeInterval(-7200)
+
+            guard let enumerator = self.fileManager.enumerator(
+                at: self.claudeProjectsDir,
+                includingPropertiesForKeys: [.contentModificationDateKey],
+                options: [.skipsHiddenFiles]
+            ) else { return }
+
+            for case let fileURL as URL in enumerator {
+                guard fileURL.pathExtension == "jsonl" else { continue }
+
+                // Check if recently modified
+                if let attrs = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]),
+                   let modDate = attrs.contentModificationDate,
+                   modDate > twoHoursAgo {
+
+                    // Parse this transcript for TodoWrite
+                    if let tasks = self.parseTranscriptForTasks(fileURL) {
+                        allTasks.append(contentsOf: tasks)
+                    }
+                }
+            }
+
+            // Update tasks on main thread
+            DispatchQueue.main.async {
+                // Only update if tasks changed (compare by count and content)
+                let currentIds = Set(self.currentTasks.map { $0.id })
+                let newIds = Set(allTasks.map { $0.id })
+
+                if currentIds != newIds || allTasks.count != self.currentTasks.count {
+                    self.currentTasks = allTasks
+                    NSLog("[ClaudeMenuBar] Updated tasks from transcripts: \(allTasks.count) tasks")
+                }
+            }
+        }
+    }
+
+    private func parseTranscriptForTasks(_ fileURL: URL) -> [ClaudeTask]? {
+        guard let data = try? Data(contentsOf: fileURL),
+              let content = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+
+        // Find the last TodoWrite entry by reading lines in reverse
+        let lines = content.components(separatedBy: "\n").reversed()
+
+        for line in lines {
+            guard !line.isEmpty,
+                  line.contains("TodoWrite"),
+                  let lineData = line.data(using: .utf8) else {
+                continue
+            }
+
+            // Try to parse the line as JSON
+            guard let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+                  let message = json["message"] as? [String: Any],
+                  let content = message["content"] as? [[String: Any]] else {
+                continue
+            }
+
+            // Find TodoWrite tool use in content
+            for item in content {
+                guard let name = item["name"] as? String,
+                      name == "TodoWrite",
+                      let input = item["input"] as? [String: Any],
+                      let todos = input["todos"] as? [[String: Any]] else {
+                    continue
+                }
+
+                // Convert to ClaudeTask array
+                var tasks: [ClaudeTask] = []
+                for todo in todos {
+                    if let todoContent = todo["content"] as? String,
+                       let status = todo["status"] as? String {
+                        let taskStatus: TaskStatus
+                        switch status {
+                        case "in_progress": taskStatus = .inProgress
+                        case "completed": taskStatus = .completed
+                        default: taskStatus = .pending
+                        }
+
+                        let task = ClaudeTask(
+                            id: todo["id"] as? String ?? UUID().uuidString,
+                            content: todoContent,
+                            status: taskStatus,
+                            activeForm: todo["activeForm"] as? String
+                        )
+                        tasks.append(task)
+                    }
+                }
+
+                if !tasks.isEmpty {
+                    return tasks
+                }
+            }
+        }
+
+        return nil
     }
 
     // MARK: - File Watching
