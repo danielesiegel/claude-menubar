@@ -2,7 +2,9 @@
 
 Native macOS menu bar app for Claude Code CLI. Shows current tasks, handles approve/deny notifications, and provides Touch Bar controls.
 
-[TBD - ADD PHOTO]
+<p align="center">
+  <img src="screenshot.png" width="400" alt="ClaudeMenuBar showing tasks">
+</p>
 
 ## Features
 
@@ -11,8 +13,6 @@ Native macOS menu bar app for Claude Code CLI. Shows current tasks, handles appr
 - **Actionable Notifications** — Approve/deny permission requests directly from notifications
 - **Touch Bar Support** — Quick approve/deny buttons on MacBook Pro Touch Bar
 - **Task Completion Alerts** — Optional popover when tasks finish
-
-[TBD - ADD PHOTO]
 
 ## Install
 
@@ -56,8 +56,6 @@ Toggle in the popover menu:
 | Permission Notifications | Show alerts for approve/deny |
 | Task Complete Popover | Show popover when task finishes |
 | Touch Bar Controls | Show approve/deny on Touch Bar |
-
-[TBD - ADD PHOTO]
 
 ## Uninstall
 
